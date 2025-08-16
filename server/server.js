@@ -28,24 +28,29 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
   const uid = String(socket.userId);
   console.log(`Socket connected: ${socket.id} — user: ${uid}`);
-  const set = userSockets.get(uid) || new Set();
-set.add(socket.id);
-userSockets.set(uid, set);
+  
 
-if (set.size === 1) {
+  if (!userSockets.has(uid)) {
+    userSockets.set(uid, new Set());
+  }
+  
+  userSockets.get(uid).add(socket.id);
 
-  User.findByIdAndUpdate(uid, { isOnline: true }, { new: true }).select('-password')
-    .then(u => { if (u) io.emit('user-status-changed', u); })
-    .catch(err => console.error(err));
-}
+  User.findByIdAndUpdate(uid, { isOnline: true }, { new: true })
+    .select("-password")
+    .then((u) => {
+      if (u) io.emit("user-status-changed", u);
+    })
+    .catch((err) => console.error(err));
+
   socket.on("private-message", async (payload) => {
     try {
-     
       const { receiverId, content, messageType, fileMeta } = payload || {};
       if (!receiverId || (!content && !fileMeta)) {
         socket.emit("error", "Invalid message payload");
         return;
       }
+      
       const newMessage = await Message.create({
         sender: uid,
         receiver: String(receiverId),
@@ -53,22 +58,25 @@ if (set.size === 1) {
         messageType: messageType || "text",
         fileMeta: fileMeta || null,
       });
+      
       const populated = await Message.findById(newMessage._id)
         .populate("sender", "name avatar")
         .populate("receiver", "name avatar")
         .lean();
 
-const senderSockets = userSockets.get(uid) || [];
-for (const sid of senderSockets) {
-  io.to(sid).emit("private-message", populated);
-}
-
-const receiverSockets = userSockets.get(String(receiverId)) || [];
-for (const sid of receiverSockets) {
-  io.to(sid).emit("private-message", populated);
-}
-
-
+      const senderMessage = {...populated, isSender: true};
+      const senderSockets = userSockets.get(uid) || [];
+      for (const sid of senderSockets) {
+        io.to(sid).emit("private-message", {
+          ...senderMessage,
+          replacesTempId: payload.tempId 
+        });
+      }
+      const receiverMessage = {...populated, isSender: false};
+      const receiverSockets = userSockets.get(String(receiverId)) || [];
+      for (const sid of receiverSockets) {
+        io.to(sid).emit("private-message", receiverMessage);
+      }
 
     } catch (err) {
       console.error("private-message error:", err);
@@ -82,16 +90,18 @@ for (const sid of receiverSockets) {
   socket.on("disconnect", async () => {
     console.log(`Socket disconnected: ${socket.id} — user: ${uid}`);
     const set = userSockets.get(uid);
-if (set) {
-  set.delete(socket.id);
-  if (set.size === 0) {
-    userSockets.delete(uid);
-    const user = await User.findByIdAndUpdate(uid, { isOnline: false, lastSeen: Date.now() }, { new: true }).select('-password');
-    if (user) io.emit('user-status-changed', user);
-  } else {
-    userSockets.set(uid, set);
-  }
-}
+    if (set) {
+      set.delete(socket.id);
+      if (set.size === 0) {
+        userSockets.delete(uid);
+        const user = await User.findByIdAndUpdate(
+          uid,
+          { isOnline: false, lastSeen: Date.now() },
+          { new: true }
+        ).select("-password");
+        if (user) io.emit("user-status-changed", user);
+      }
+    }
   });
 });
 const PORT = process.env.PORT || 5000;

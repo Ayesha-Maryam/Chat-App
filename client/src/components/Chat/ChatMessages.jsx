@@ -32,8 +32,11 @@ const ChatMessages = () => {
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
       <div className="space-y-4">
-        {messages.map((message, index) => (
-  <Message key={message._id || `${message.createdAt}-${index}`} message={message} />
+        {messages.map((message) => (
+  <Message 
+    key={message._id || `${message.createdAt}-${message.content.substring(0, 10)}`} 
+    message={message} 
+  />
 ))}
         <div ref={messagesEndRef} />
       </div>

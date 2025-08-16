@@ -3,9 +3,12 @@ import { useAuth } from "../../context/AuthContext";
 import { FiDownload } from "react-icons/fi";
 const Message = ({ message }) => {
   const { user } = useAuth();
-  const isSender =
-    message.sender?._id?.toString() === user._id?.toString() ||
-    message.sender?.toString() === user._id?.toString();
+  
+  const isSender = message.isSender !== undefined 
+    ? message.isSender 
+    : message.sender?._id?.toString() === user._id?.toString() || 
+      message.sender?.toString() === user._id?.toString();
+
   const renderMessageContent = () => {
     switch (message.messageType) {
       case "text":
