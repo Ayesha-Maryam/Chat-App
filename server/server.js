@@ -25,23 +25,26 @@ io.use((socket, next) => {
     return next(new Error("Authentication error"));
   }
 });
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   const uid = String(socket.userId);
   console.log(`Socket connected: ${socket.id} — user: ${uid}`);
-  
 
   if (!userSockets.has(uid)) {
     userSockets.set(uid, new Set());
   }
-  
+
   userSockets.get(uid).add(socket.id);
 
-  User.findByIdAndUpdate(uid, { isOnline: true }, { new: true })
-    .select("-password")
-    .then((u) => {
-      if (u) io.emit("user-status-changed", u);
-    })
-    .catch((err) => console.error(err));
+
+  const user = await User.findById(uid).select("isOnline");
+  const wasOnline = user?.isOnline || false;
+
+
+  if (userSockets.get(uid).size === 1 && !wasOnline) {
+    await User.findByIdAndUpdate(uid, { isOnline: true });
+    const updatedUser = await User.findById(uid).select("-password");
+    io.emit("user-status-changed", updatedUser);
+  }
 
   socket.on("private-message", async (payload) => {
     try {
@@ -88,18 +91,22 @@ io.on("connection", (socket) => {
     socket.to(String(receiverId)).emit("typing", { senderId: uid, isTyping });
   });
   socket.on("disconnect", async () => {
-    console.log(`Socket disconnected: ${socket.id} — user: ${uid}`);
+     console.log(`Socket disconnected: ${socket.id} — user: ${uid}`);
     const set = userSockets.get(uid);
     if (set) {
       set.delete(socket.id);
+      
       if (set.size === 0) {
         userSockets.delete(uid);
-        const user = await User.findByIdAndUpdate(
+        const updatedUser = await User.findByIdAndUpdate(
           uid,
           { isOnline: false, lastSeen: Date.now() },
           { new: true }
         ).select("-password");
-        if (user) io.emit("user-status-changed", user);
+        
+        if (updatedUser) {
+          io.emit("user-status-changed", updatedUser);
+        }
       }
     }
   });

@@ -42,10 +42,14 @@ export const ChatProvider = ({ children }) => {
     };
 
     const handleStatusChange = (updatedUser) => {
-      setUsers(prev => prev.map(u => 
-        u._id === updatedUser._id ? { ...u, isOnline: updatedUser.isOnline } : u
-      ));
-    };
+    setUsers(prev => prev.map(u => 
+      u._id === updatedUser._id ? { 
+        ...u, 
+        isOnline: updatedUser.isOnline,
+        lastSeen: updatedUser.lastSeen 
+      } : u
+    ));
+  };
 
     socket.on("private-message", handleNewMessage);
     socket.on('typing', ({ senderId, isTyping }) => {
@@ -53,21 +57,23 @@ export const ChatProvider = ({ children }) => {
       setTypingUser(senderId);
     });
     socket.on('user-status-changed', handleStatusChange);
-    const fetchUsers = async () => {
-      try {
-        const res = await api.get('/users');
-
-        const usersWithDefaultStatus = res.data.data.map(u => ({
-          ...u,
-          isOnline: false 
-        }));
-        setUsers(usersWithDefaultStatus);
-      } catch (error) {
-        console.error("Failed to fetch users:", error);
-      }
-    };
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/users');
+      const usersWithStatus = res.data.data.map(u => ({
+        ...u,
+  
+        isOnline: false,
+        lastSeen: u.lastSeen || null
+      }));
+      setUsers(usersWithStatus);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    }
+  };
 
     fetchUsers();
+    socket.on('user-status-changed', handleStatusChange);
 
     return () => {
       socket.off("private-message", handleNewMessage);
