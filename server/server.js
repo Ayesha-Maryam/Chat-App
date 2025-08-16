@@ -57,8 +57,19 @@ if (set.size === 1) {
         .populate("sender", "name avatar")
         .populate("receiver", "name avatar")
         .lean();
-      io.to(uid).emit("private-message", populated);
-      io.to(String(receiverId)).emit("private-message", populated);
+
+const senderSockets = userSockets.get(uid) || [];
+for (const sid of senderSockets) {
+  io.to(sid).emit("private-message", populated);
+}
+
+const receiverSockets = userSockets.get(String(receiverId)) || [];
+for (const sid of receiverSockets) {
+  io.to(sid).emit("private-message", populated);
+}
+
+
+
     } catch (err) {
       console.error("private-message error:", err);
       socket.emit("error", "Failed to send message");
