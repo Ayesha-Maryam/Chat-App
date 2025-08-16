@@ -40,11 +40,14 @@ io.on("connection", async (socket) => {
   const wasOnline = user?.isOnline || false;
 
 
-  if (userSockets.get(uid).size === 1 && !wasOnline) {
-    await User.findByIdAndUpdate(uid, { isOnline: true });
-    const updatedUser = await User.findById(uid).select("-password");
-    io.emit("user-status-changed", updatedUser);
-  }
+ if (userSockets.get(uid).size === 1 && !wasOnline) {
+  await User.findByIdAndUpdate(uid, { isOnline: true });
+  const updatedUser = await User.findById(uid).select("-password");
+  io.emit("user-status-changed", updatedUser);
+}
+
+const onlineUsers = await User.find({ isOnline: true }).select("-password");
+io.to(socket.id).emit("online-users", onlineUsers);
 
   socket.on("private-message", async (payload) => {
     try {

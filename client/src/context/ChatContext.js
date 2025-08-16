@@ -21,6 +21,14 @@ export const ChatProvider = ({ children }) => {
 
   useEffect(() => {
     if (!user) return;
+     socket.on("online-users", (onlineUsers) => {
+    setUsers(prev => 
+      prev.map(u => {
+        const match = onlineUsers.find(ou => ou._id === u._id);
+        return match ? { ...u, isOnline: true, lastSeen: null } : u;
+      })
+    );
+  });
 
     socket.emit('set-online', user._id);
 
@@ -60,12 +68,11 @@ export const ChatProvider = ({ children }) => {
   const fetchUsers = async () => {
     try {
       const res = await api.get('/users');
-      const usersWithStatus = res.data.data.map(u => ({
-        ...u,
-  
-        isOnline: false,
-        lastSeen: u.lastSeen || null
-      }));
+     const usersWithStatus = res.data.data.map(u => ({
+  ...u,
+  isOnline: u.isOnline || false,
+  lastSeen: u.lastSeen || null
+}));
       setUsers(usersWithStatus);
     } catch (error) {
       console.error("Failed to fetch users:", error);
@@ -76,6 +83,7 @@ export const ChatProvider = ({ children }) => {
     socket.on('user-status-changed', handleStatusChange);
 
     return () => {
+      socket.off("online-users");
       socket.off("private-message", handleNewMessage);
       socket.off('typing');
       socket.off('user-status-changed', handleStatusChange);
